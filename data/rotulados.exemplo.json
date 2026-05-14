@@ -1,0 +1,19 @@
+[
+  {
+    "arquivo": "relatorio_estagio_01.pdf",
+    "titulo": "Relatório de Estágio Supervisionado — Física",
+    "resumo": "Relato das atividades desenvolvidas em laboratório de física experimental com turmas do 2º ano do Ensino Médio, abordando fenômenos ondulatórios e óptica geométrica.",
+    "habilidades_corretas": ["EM13CNT101", "EM13CNT201"]
+  },
+  {
+    "arquivo": "trilha_matematica_01.docx",
+    "titulo": "Trilha Pedagógica — Funções e Modelagem",
+    "resumo": "Sequência didática para o estudo de funções polinomiais com ênfase em modelagem matemática de situações reais.",
+    "habilidades_corretas": ["EM13MAT301", "EM13MAT302", "EM13MAT401"]
+  },
+  {
+    "texto": "Esta aula aborda a leitura e interpretação de textos argumentativos, com foco na identificação de teses, argumentos e estratégias discursivas utilizadas pelo autor para convencer o leitor.",
+    "titulo": "Aula — Texto Argumentativo",
+    "habilidades_corretas": ["EM13LP01", "EM13LP06"]
+  }
+]

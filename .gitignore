@@ -1,0 +1,29 @@
+# Ambiente virtual
+venv/
+.env
+
+# Embeddings gerados (arquivo grande, não versionar)
+data/bncc_embeddings.npz
+
+# Outputs gerados
+outputs/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Modelos baixados pelo Hugging Face
+*.bin
+*.safetensors
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
