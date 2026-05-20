@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Classificador BNCC</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Classificador BNCC</h1>
+      <p>Classifique um documento segundo as habilidades do Ensino Médio (BNCC)</p>
+    </header>
+
+    <div class="card">
+      <div class="drop-zone" id="drop-zone">
+        <span class="icon">📄</span>
+        <p>Arraste e solte seu arquivo aqui, ou clique para selecionar</p>
+        <p style="margin-top:.25rem;font-size:.8rem;color:#94a3b8">PDF, Word (.docx), TXT</p>
+        <div class="file-name hidden" id="file-name"></div>
+      </div>
+      <input type="file" id="file-input" accept=".pdf,.docx,.doc,.txt">
+
+      <label for="titulo">Título <span class="label-opt">(opcional)</span></label>
+      <input type="text" id="titulo" placeholder="Título do documento...">
+
+      <label for="resumo">Resumo <span class="label-opt">(opcional — melhora a precisão)</span></label>
+      <textarea id="resumo" placeholder="Resumo do conteúdo..."></textarea>
+
+      <button class="btn" id="submit-btn" disabled>Classificar documento</button>
+    </div>
+
+    <div id="loading" class="hidden">
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>Classificando… isso pode levar alguns segundos.</p>
+      </div>
+    </div>
+
+    <div id="results" class="hidden">
+      <div class="card">
+        <div class="section-title">Resultados</div>
+        <div id="convergence-section"></div>
+        <div id="meta-section"></div>
+        <div id="competencies"></div>
+      </div>
+    </div>
+
+    <div id="error-section" class="hidden">
+      <div class="card">
+        <div class="error-msg" id="error-msg"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
