@@ -29,7 +29,7 @@ import io
 # ── Configurações ────────────────────────────────────────────────────────────
 
 MODELO = "neuralmind/bert-base-portuguese-cased"
-ARQUIVO_EMBEDDINGS = "bncc_embeddings.npz"
+ARQUIVO_EMBEDDINGS = "../data/bncc_embeddings.npz"
 
 CHUNK_SIZE = 400       # tokens por chunk
 CHUNK_OVERLAP = 50     # tokens de sobreposição
