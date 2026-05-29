@@ -84,7 +84,7 @@ def metricas_globais(resultados: list[dict]) -> dict:
 def avaliar(args):
     # Carrega modelo e vetores das habilidades
     tokenizer, model, device = carregar_modelo()
-    bncc = np.load(ARQUIVO_EMBEDDINGS, allow_pickle=True)
+    bncc = np.load(ARQUIVO_EMBEDDINGS, allow_pickle=False)
     bncc_dict = {
         "embeddings": bncc["embeddings"],
         "codigos":    bncc["codigos"],
@@ -106,7 +106,11 @@ def avaliar(args):
 
         # Extrai texto
         if "arquivo" in doc:
-            caminho = Path(args.rotulados).parent / doc["arquivo"]
+            base_dir = Path(args.rotulados).parent.resolve()
+            caminho  = (base_dir / doc["arquivo"]).resolve()
+            if not str(caminho).startswith(str(base_dir)):
+                print(f"  ⚠ Caminho suspeito ignorado: {doc['arquivo']}")
+                continue
             texto = extrair_texto(str(caminho))
         else:
             texto = doc.get("texto", "")
