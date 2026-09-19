@@ -17,7 +17,8 @@ from transformers import AutoTokenizer, AutoModel
 
 # ── Configurações ────────────────────────────────────────────────────────────
 
-MODELO = "neuralmind/bert-base-portuguese-cased"  # BERTimbau base
+#MODELO = "neuralmind/bert-base-portuguese-cased"  # BERTimbau base
+MODELO = "rufimelo/bert-large-portuguese-cased-sts"  # BERTimbau base
 ARQUIVO_BNCC = "data/bncc.json"
 ARQUIVO_SAIDA = "data/bncc_embeddings.npz"
 BATCH_SIZE = 16   # reduza para 8 se tiver pouca RAM

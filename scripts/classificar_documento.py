@@ -28,13 +28,14 @@ import io
 
 # ── Configurações ────────────────────────────────────────────────────────────
 
-MODELO = "neuralmind/bert-base-portuguese-cased"
+#MODELO = "neuralmind/bert-base-portuguese-cased"
+MODELO = "rufimelo/bert-large-portuguese-cased-sts"
 ARQUIVO_EMBEDDINGS = "../data/bncc_embeddings.npz"
 
 CHUNK_SIZE = 400       # tokens por chunk
 CHUNK_OVERLAP = 50     # tokens de sobreposição
 MAX_TOKENS = 512       # limite do BERTimbau
-TOP_K = 5              # habilidades retornadas
+TOP_K = 20              # habilidades retornadas
 PESO_CHUNKS = 0.5      # peso da representação por chunks
 PESO_RESUMO = 0.5      # peso da representação por título+resumo
 
