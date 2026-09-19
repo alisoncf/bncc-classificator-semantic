@@ -1,3 +1,12 @@
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 const dropZone   = document.getElementById('drop-zone');
 const fileInput  = document.getElementById('file-input');
 const fileNameEl = document.getElementById('file-name');
@@ -7,7 +16,10 @@ const results    = document.getElementById('results');
 const errorSec   = document.getElementById('error-section');
 const errorMsg   = document.getElementById('error-msg');
 
-let selectedFile = null;
+let selectedFile    = null;
+let currentFileName = '';
+
+// ── Sélection de fichier ──────────────────────────────────────────────────────
 
 dropZone.addEventListener('click', () => fileInput.click());
 
@@ -27,11 +39,14 @@ fileInput.addEventListener('change', () => {
 });
 
 function setFile(file) {
-  selectedFile = file;
+  selectedFile    = file;
+  currentFileName = file.name;
   fileNameEl.textContent = '📎 ' + file.name;
   fileNameEl.classList.remove('hidden');
   submitBtn.disabled = false;
 }
+
+// ── Soumission ────────────────────────────────────────────────────────────────
 
 submitBtn.addEventListener('click', async () => {
   if (!selectedFile) return;
@@ -62,33 +77,35 @@ submitBtn.addEventListener('click', async () => {
   }
 });
 
+// ── Affichage des résultats ───────────────────────────────────────────────────
+
 function displayResults(data) {
   const convSection = document.getElementById('convergence-section');
   if (data.convergencia != null) {
     const c = data.convergencia;
     const [cls, label] = c > 0.85
-      ? ['badge-high', 'Alta']
+      ? ['badge-high',   'Alta']
       : c > 0.70
       ? ['badge-medium', 'Média']
-      : ['badge-low', 'Baixa'];
+      : ['badge-low',    'Baixa'];
     const warning = c <= 0.70
       ? '<br><small style="color:#991b1b;display:block;margin-top:.25rem">⚠ Convergência baixa — revisão humana recomendada</small>'
       : '';
-    convSection.innerHTML = `<span class="convergence-badge ${cls}">Convergência: ${c.toFixed(3)} — ${label}</span>${warning}`;
+    convSection.innerHTML = `<span class="convergence-badge ${escapeHtml(cls)}">Convergência: ${escapeHtml(c.toFixed(3))} — ${escapeHtml(label)}</span>${warning}`;
   } else {
     convSection.innerHTML = '';
   }
 
   document.getElementById('meta-section').innerHTML =
-    `<div class="meta-info">${data.num_chunks} chunks analisados · ${data.habilidades.length} habilidades identificadas</div>`;
+    `<div class="meta-info">${escapeHtml(data.num_chunks)} chunks analisados · ${escapeHtml(data.habilidades.length)} habilidades identificadas</div>`;
 
   document.getElementById('competencies').innerHTML = data.habilidades.map(h => {
     const pct = Math.round(h.confianca * 100);
     return `
       <div class="result-card">
         <div class="result-header">
-          <span class="code-badge">${h.codigo}</span>
-          <span class="area-label">${h.area}</span>
+          <span class="code-badge">${escapeHtml(h.codigo)}</span>
+          <span class="area-label">${escapeHtml(h.area)}</span>
         </div>
         <div class="confidence-bar-wrap">
           <div class="confidence-bar">
@@ -96,10 +113,19 @@ function displayResults(data) {
           </div>
           <span class="confidence-value">${pct}%</span>
         </div>
-        <div class="desc">${h.descricao}</div>
+        <div class="desc">${escapeHtml(h.descricao)}</div>
       </div>`;
   }).join('');
 
   results.classList.remove('hidden');
   results.scrollIntoView({ behavior: 'smooth' });
 }
+
+// ── Export PDF ────────────────────────────────────────────────────────────────
+
+document.getElementById('export-btn').addEventListener('click', () => {
+  document.getElementById('print-filename').textContent = currentFileName || 'Documento';
+  document.getElementById('print-date').textContent =
+    'Data: ' + new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  window.print();
+});

@@ -23,7 +23,6 @@ import torch
 from transformers import AutoTokenizer, AutoModel
 import pymupdf
 import docx
-import io
 
 
 # ── Configurações ────────────────────────────────────────────────────────────
@@ -53,7 +52,7 @@ def carregar_modelo():
 
 def carregar_embeddings_bncc():
     print(f"Carregando vetores das habilidades de {ARQUIVO_EMBEDDINGS} ...")
-    data = np.load(ARQUIVO_EMBEDDINGS, allow_pickle=True)
+    data = np.load(ARQUIVO_EMBEDDINGS, allow_pickle=False)
     return {
         "embeddings": data["embeddings"],   # (N, 768)
         "codigos":    data["codigos"],

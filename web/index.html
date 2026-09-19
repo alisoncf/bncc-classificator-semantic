@@ -8,12 +8,19 @@
 </head>
 <body>
   <div class="container">
-    <header>
+
+    <div id="print-header" class="print-only">
+      <h1>Relatório de Classificação BNCC</h1>
+      <p id="print-filename"></p>
+      <p id="print-date"></p>
+    </div>
+
+    <header class="no-print">
       <h1>Classificador BNCC</h1>
       <p>Classifique um documento segundo as habilidades do Ensino Médio (BNCC)</p>
     </header>
 
-    <div class="card">
+    <div class="card no-print">
       <div class="drop-zone" id="drop-zone">
         <span class="icon">📄</span>
         <p>Arraste e solte seu arquivo aqui, ou clique para selecionar</p>
@@ -31,7 +38,7 @@
       <button class="btn" id="submit-btn" disabled>Classificar documento</button>
     </div>
 
-    <div id="loading" class="hidden">
+    <div id="loading" class="hidden no-print">
       <div class="loading">
         <div class="spinner"></div>
         <p>Classificando… isso pode levar alguns segundos.</p>
@@ -40,7 +47,10 @@
 
     <div id="results" class="hidden">
       <div class="card">
-        <div class="section-title">Resultados</div>
+        <div class="results-header">
+          <div class="section-title">Resultados</div>
+          <button class="btn-outline no-print" id="export-btn">Exportar como PDF</button>
+        </div>
         <div id="convergence-section"></div>
         <div id="meta-section"></div>
         <div id="competencies"></div>
