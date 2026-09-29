@@ -51,6 +51,13 @@ function setFile(file) {
 submitBtn.addEventListener('click', async () => {
   if (!selectedFile) return;
 
+  const etapas = [...document.querySelectorAll('input[name="etapa"]:checked')].map(c => c.value);
+  if (etapas.length === 0) {
+    errorMsg.textContent = '⚠ Selecione ao menos uma etapa.';
+    errorSec.classList.remove('hidden');
+    return;
+  }
+
   submitBtn.disabled = true;
   loading.classList.remove('hidden');
   results.classList.add('hidden');
@@ -60,6 +67,7 @@ submitBtn.addEventListener('click', async () => {
   formData.append('file', selectedFile);
   formData.append('titulo', document.getElementById('titulo').value);
   formData.append('resumo', document.getElementById('resumo').value);
+  formData.append('etapas', etapas.join(','));
 
   try {
     const res = await fetch('/api/classify', { method: 'POST', body: formData });
@@ -105,7 +113,7 @@ function displayResults(data) {
       <div class="result-card">
         <div class="result-header">
           <span class="code-badge">${escapeHtml(h.codigo)}</span>
-          <span class="area-label">${escapeHtml(h.area)}</span>
+          <span class="area-label">${escapeHtml(h.etapa)} · ${escapeHtml(h.area)}</span>
         </div>
         <div class="confidence-bar-wrap">
           <div class="confidence-bar">
