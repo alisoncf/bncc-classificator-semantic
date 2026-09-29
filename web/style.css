@@ -83,6 +83,29 @@ input[type="text"]:focus,
 textarea:focus { border-color: var(--primary); }
 textarea { resize: vertical; min-height: 100px; }
 
+.etapas {
+  border: none;
+  padding: 0;
+  margin: 0 0 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem 1.25rem;
+}
+.etapas legend {
+  font-size: .875rem;
+  font-weight: 600;
+  margin-bottom: .4rem;
+  padding: 0;
+}
+.etapas label {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  font-weight: 400;
+  margin: 0;
+  cursor: pointer;
+}
+
 .btn {
   display: block;
   width: 100%;

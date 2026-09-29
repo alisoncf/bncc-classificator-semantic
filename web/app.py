@@ -38,7 +38,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    print("Chargement du modèle BERTimbau et des embeddings BNCC...")
+    print("Chargement du modèle et des embeddings BNCC...")
     _state["tokenizer"], _state["model"], _state["device"] = cd.carregar_modelo()
     _state["bncc"] = cd.carregar_embeddings_bncc()
     print("Prêt.")
@@ -54,7 +54,12 @@ async def classify(
     file: UploadFile = File(...),
     titulo: str = Form(""),
     resumo: str = Form(""),
+    etapas: str = Form(""),
 ):
+    lista_etapas = [e for e in etapas.split(",") if e]
+    if any(e not in cd.ETAPAS for e in lista_etapas):
+        raise HTTPException(400, "Etapa inválida.")
+
     if len(titulo) > MAX_TITULO_LEN:
         raise HTTPException(400, f"Título muito longo (máx. {MAX_TITULO_LEN} caracteres).")
     if len(resumo) > MAX_RESUMO_LEN:
@@ -86,6 +91,7 @@ async def classify(
             model=_state["model"],
             device=_state["device"],
             bncc=_state["bncc"],
+            etapas=lista_etapas or None,
         )
 
         for h in resultado["habilidades"]:

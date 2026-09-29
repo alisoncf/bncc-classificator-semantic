@@ -17,7 +17,7 @@
 
     <header class="no-print">
       <h1>Classificador BNCC</h1>
-      <p>Classifique um documento segundo as habilidades do Ensino Médio (BNCC)</p>
+      <p>Classifique um documento segundo as habilidades da BNCC</p>
     </header>
 
     <div class="card no-print">
@@ -34,6 +34,13 @@
 
       <label for="resumo">Resumo <span class="label-opt">(opcional — melhora a precisão)</span></label>
       <textarea id="resumo" placeholder="Resumo do conteúdo..."></textarea>
+
+      <fieldset class="etapas">
+        <legend>Etapas <span class="label-opt">(desmarque as que não se aplicam)</span></legend>
+        <label><input type="checkbox" name="etapa" value="EI" checked> Educação Infantil</label>
+        <label><input type="checkbox" name="etapa" value="EF" checked> Ensino Fundamental</label>
+        <label><input type="checkbox" name="etapa" value="EM" checked> Ensino Médio</label>
+      </fieldset>
 
       <button class="btn" id="submit-btn" disabled>Classificar documento</button>
     </div>

@@ -1,5 +1,5 @@
 """
-Gera embeddings das habilidades da BNCC usando BERTimbau
+Gera embeddings das habilidades da BNCC usando multilingual-e5
 e salva em disco para uso posterior na classificação.
 
 Uso:
@@ -17,8 +17,9 @@ from transformers import AutoTokenizer, AutoModel
 
 # ── Configurações ────────────────────────────────────────────────────────────
 
-#MODELO = "neuralmind/bert-base-portuguese-cased"  # BERTimbau base
-MODELO = "rufimelo/bert-large-portuguese-cased-sts"  # BERTimbau base
+# Deve ser o mesmo modelo usado em classificar_documento.py
+MODELO = "intfloat/multilingual-e5-base"
+PREFIXO_HABILIDADE = "passage: "   # e5: habilidades são "passage", documentos são "query"
 ARQUIVO_BNCC = "data/bncc.json"
 ARQUIVO_SAIDA = "data/bncc_embeddings.npz"
 BATCH_SIZE = 16   # reduza para 8 se tiver pouca RAM
@@ -75,7 +76,7 @@ def main():
         data = json.load(f)
 
     habilidades = data["habilidades"]
-    textos = [h["texto_embedding"] for h in habilidades]
+    textos = [PREFIXO_HABILIDADE + h["texto_embedding"] for h in habilidades]
     codigos = [h["codigo"] for h in habilidades]
     areas = [h["area"] for h in habilidades]
     descricoes = [h["descricao"] for h in habilidades]
@@ -84,7 +85,7 @@ def main():
 
     # 2. Carrega modelo
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"\nCarregando BERTimbau ({MODELO}) em {device} ...")
+    print(f"\nCarregando {MODELO} em {device} ...")
     tokenizer = AutoTokenizer.from_pretrained(MODELO)
     model = AutoModel.from_pretrained(MODELO).to(device)
     model.eval()
@@ -92,7 +93,7 @@ def main():
     # 3. Gera embeddings
     print("\nGerando embeddings das habilidades ...")
     embeddings = gerar_embeddings(textos, tokenizer, model, device)
-    print(f"Shape dos embeddings: {embeddings.shape}")  # (209, 768)
+    print(f"Shape dos embeddings: {embeddings.shape}")  # (N, dim)
 
     # 4. Salva em disco
     np.savez(
@@ -102,6 +103,7 @@ def main():
         areas=np.array(areas),
         descricoes=np.array(descricoes),
         textos=np.array(textos),
+        modelo=np.array(MODELO),
     )
     print(f"\nSalvo em {ARQUIVO_SAIDA}")
     print("Pronto! Este arquivo pode ser carregado uma única vez na classificação.")

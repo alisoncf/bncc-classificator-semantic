@@ -1,6 +1,6 @@
-# Classificador BNCC — Ensino Médio
+# Classificador BNCC
 
-Pipeline para classificação automática de materiais didáticos nas habilidades da Base Nacional Comum Curricular (BNCC) do Ensino Médio, usando embeddings semânticos com BERTimbau e similaridade de cosseno.
+Pipeline para classificação automática de materiais didáticos nas habilidades da Base Nacional Comum Curricular (BNCC) — Educação Infantil, Ensino Fundamental e Ensino Médio — usando embeddings semânticos com [multilingual-e5](https://huggingface.co/intfloat/multilingual-e5-base) e similaridade de cosseno.
 
 ---
 
@@ -8,7 +8,7 @@ Pipeline para classificação automática de materiais didáticos nas habilidade
 
 ```
 Preparação (uma vez só)
-  bncc.json → BERTimbau → bncc_embeddings.npz
+  bncc.json → e5 ("passage:") → bncc_embeddings.npz
 
 Classificação (por documento)
   documento
@@ -20,16 +20,16 @@ Classificação (por documento)
   │ (400 tok, ov50) │   (≤ 512 tok)    │
   └────────┬────────┴────────┬─────────┘
            │                 │
-      BERTimbau          BERTimbau
+   e5 ("query:")     e5 ("query:")
            │                 │
-      média dos          vetor do
-       embeddings          resumo
+  score por habilidade:  vetor do
+  média dos 3 melhores     resumo
+        chunks
            └────────┬────────┘
-               combinação
-            (média ponderada)
+          cosseno vs. habilidades
                     ↓
-         similaridade de cosseno
-          vs. vetores das habilidades
+         combinação dos scores
+            (média ponderada)
                     ↓
             top-k habilidades
 ```
@@ -72,7 +72,7 @@ source venv/bin/activate      # Linux/macOS
 pip install -r requirements.txt
 ```
 
-> Na primeira execução, o BERTimbau (~440MB) será baixado automaticamente do Hugging Face.
+> Na primeira execução, o modelo multilingual-e5-base (~1,1 GB) será baixado automaticamente do Hugging Face.
 
 ---
 
@@ -106,6 +106,9 @@ python classificar_documento.py --texto "Conteúdo do material aqui..."
 
 # Retornar top-10 em vez de top-5
 python classificar_documento.py --arquivo material.pdf --top 10
+
+# Considerar só algumas etapas (EI, EF, EM; padrão: todas)
+python classificar_documento.py --arquivo material.pdf --etapas EF EM
 ```
 
 Saída no terminal e em `outputs/resultado_classificacao.json`.
@@ -122,6 +125,23 @@ python avaliar.py
 ```
 
 Gera métricas de precisão, recall e F1 por documento e globais, salvas em `outputs/avaliacao.json`.
+
+---
+
+### Interface web
+
+Requer os vetores gerados no Passo 1. A partir da pasta `web`:
+
+```bash
+cd web
+uvicorn app:app --port 8000
+```
+
+Acesse http://localhost:8000. O modelo e os vetores são carregados na inicialização — aguarde a mensagem `Prêt.` no terminal antes de enviar um documento.
+
+Na interface é possível enviar PDF, Word ou TXT (até 10 MB), informar título e resumo opcionais, escolher as etapas consideradas (Educação Infantil, Ensino Fundamental, Ensino Médio) e exportar o resultado como PDF.
+
+> Durante o desenvolvimento, `--reload` reinicia o servidor a cada alteração, mas recarrega o modelo a cada vez.
 
 ---
 
@@ -152,7 +172,8 @@ Em `classificar_documento.py`:
 |---|---|---|
 | `CHUNK_SIZE` | 400 | Tokens por chunk |
 | `CHUNK_OVERLAP` | 50 | Tokens de sobreposição |
-| `TOP_K` | 5 | Habilidades retornadas |
+| `TOP_K` | 20 | Habilidades retornadas |
+| `TOP_CHUNKS` | 3 | Chunks mais similares considerados no score de cada habilidade |
 | `PESO_CHUNKS` | 0.5 | Peso da representação por chunks |
 | `PESO_RESUMO` | 0.5 | Peso da representação por resumo |
 
@@ -166,5 +187,5 @@ O pipeline calcula a similaridade entre a representação por chunks e a por tí
 
 ## Referências
 
-- [BERTimbau](https://huggingface.co/neuralmind/bert-base-portuguese-cased) — BERT pré-treinado em português
+- [multilingual-e5](https://huggingface.co/intfloat/multilingual-e5-base) — modelo de embeddings multilíngue treinado para busca (query → passage)
 - [BNCC — MEC](https://basenacional.mec.gov.br) — Base Nacional Comum Curricular

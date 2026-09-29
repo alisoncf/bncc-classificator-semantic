@@ -1,16 +1,20 @@
 """
-Classifica um documento nas habilidades da BNCC do Ensino Médio.
+Classifica um documento nas habilidades da BNCC (Educação Infantil,
+Ensino Fundamental e Ensino Médio).
 
 Estratégia:
-  - Representação 1: chunking com overlap → média dos embeddings
+  - Representação 1: chunking com overlap → cada chunk é comparado com as
+    habilidades; o score de uma habilidade é a média dos TOP_CHUNKS chunks
+    mais similares a ela (um trecho forte não se dilui no resto do documento)
   - Representação 2: título + resumo (se disponível)
-  - Combinação: média ponderada das duas representações
-  - Classificação: similaridade de cosseno contra vetores das habilidades
+  - Combinação: média ponderada dos scores das duas representações
+  - Similaridade de cosseno com multilingual-e5 (prefixos "query:"/"passage:")
 
 Uso:
     python classificar_documento.py --arquivo relatorio.pdf
     python classificar_documento.py --arquivo aula.docx --titulo "Aula de Genética" --resumo "Estudo dos genes..."
     python classificar_documento.py --texto "Texto do material aqui..."
+    python classificar_documento.py --arquivo aula.pdf --etapas EF EM
 
 Dependências:
     pip install torch transformers numpy pymupdf python-docx
@@ -27,23 +31,32 @@ import docx
 
 # ── Configurações ────────────────────────────────────────────────────────────
 
-#MODELO = "neuralmind/bert-base-portuguese-cased"
-MODELO = "rufimelo/bert-large-portuguese-cased-sts"
+# Deve ser o mesmo modelo usado em gerar_embeddings_bncc.py
+MODELO = "intfloat/multilingual-e5-base"
+PREFIXO_DOC = "query: "   # e5: textos do documento são "query", habilidades são "passage"
 ARQUIVO_EMBEDDINGS = "../data/bncc_embeddings.npz"
 
 CHUNK_SIZE = 400       # tokens por chunk
 CHUNK_OVERLAP = 50     # tokens de sobreposição
-MAX_TOKENS = 512       # limite do BERTimbau
+MAX_TOKENS = 512       # limite do modelo
 TOP_K = 20              # habilidades retornadas
+TOP_CHUNKS = 3         # chunks mais similares considerados por habilidade
 PESO_CHUNKS = 0.5      # peso da representação por chunks
 PESO_RESUMO = 0.5      # peso da representação por título+resumo
+
+# Etapas da BNCC, identificadas pelo prefixo do código da habilidade
+ETAPAS = {
+    "EI": "Educação Infantil",
+    "EF": "Ensino Fundamental",
+    "EM": "Ensino Médio",
+}
 
 
 # ── Carregamento do modelo ───────────────────────────────────────────────────
 
 def carregar_modelo():
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"Carregando BERTimbau em {device} ...")
+    print(f"Carregando {MODELO} em {device} ...")
     tokenizer = AutoTokenizer.from_pretrained(MODELO)
     model = AutoModel.from_pretrained(MODELO).to(device)
     model.eval()
@@ -53,8 +66,14 @@ def carregar_modelo():
 def carregar_embeddings_bncc():
     print(f"Carregando vetores das habilidades de {ARQUIVO_EMBEDDINGS} ...")
     data = np.load(ARQUIVO_EMBEDDINGS, allow_pickle=False)
+    modelo_vetores = str(data["modelo"]) if "modelo" in data else "desconhecido"
+    if modelo_vetores != MODELO:
+        raise RuntimeError(
+            f"{ARQUIVO_EMBEDDINGS} foi gerado com o modelo '{modelo_vetores}', "
+            f"mas a classificação usa '{MODELO}'. Rode gerar_embeddings_bncc.py novamente."
+        )
     return {
-        "embeddings": data["embeddings"],   # (N, 768)
+        "embeddings": data["embeddings"],   # (N, dim)
         "codigos":    data["codigos"],
         "areas":      data["areas"],
         "descricoes": data["descricoes"],
@@ -123,9 +142,9 @@ def mean_pooling(model_output, attention_mask):
 
 
 def gerar_embedding(texto: str, tokenizer, model, device) -> np.ndarray:
-    """Gera embedding de um único texto."""
+    """Gera embedding de um único texto do documento."""
     encoded = tokenizer(
-        texto,
+        PREFIXO_DOC + texto,
         padding=True,
         truncation=True,
         max_length=MAX_TOKENS,
@@ -136,16 +155,16 @@ def gerar_embedding(texto: str, tokenizer, model, device) -> np.ndarray:
         output = model(**encoded)
 
     emb = mean_pooling(output, encoded["attention_mask"])
-    return emb.cpu().numpy()[0]  # (768,)
+    return emb.cpu().numpy()[0]  # (dim,)
 
 
-def embedding_por_chunks(texto: str, tokenizer, model, device) -> np.ndarray:
-    """Chunking + média dos embeddings."""
+def embeddings_por_chunks(texto: str, tokenizer, model, device) -> np.ndarray:
+    """Chunking + embedding de cada chunk."""
     chunks = fazer_chunks(texto, tokenizer)
     print(f"  {len(chunks)} chunk(s) gerado(s)")
 
     embeddings = [gerar_embedding(c, tokenizer, model, device) for c in chunks]
-    return np.mean(embeddings, axis=0)  # (768,)
+    return np.array(embeddings)  # (n_chunks, dim)
 
 
 # ── Similaridade ─────────────────────────────────────────────────────────────
@@ -158,12 +177,20 @@ def cosseno(v1: np.ndarray, v2: np.ndarray) -> float:
     return float(np.dot(v1, v2) / (norm1 * norm2))
 
 
-def classificar(vetor_doc: np.ndarray, bncc: dict, top_k: int = TOP_K) -> list[dict]:
-    """Compara vetor do documento com todos os vetores das habilidades."""
-    scores = []
-    for i, emb_hab in enumerate(bncc["embeddings"]):
-        score = cosseno(vetor_doc, emb_hab)
-        scores.append((score, i))
+def similaridades(vetores: np.ndarray, bncc: dict) -> np.ndarray:
+    """Cosseno de cada vetor (linhas) contra todas as habilidades → (n_vetores, n_habilidades)."""
+    hab = bncc["embeddings"] / np.linalg.norm(bncc["embeddings"], axis=1, keepdims=True)
+    vet = vetores / np.linalg.norm(vetores, axis=1, keepdims=True)
+    return vet @ hab.T
+
+
+def classificar(scores_hab: np.ndarray, bncc: dict, top_k: int = TOP_K,
+                etapas: list[str] = None) -> list[dict]:
+    """Ordena as habilidades das etapas escolhidas (todas, se etapas for None) pelo score."""
+    scores = [
+        (float(score), i) for i, score in enumerate(scores_hab)
+        if not etapas or str(bncc["codigos"][i])[:2] in etapas
+    ]
 
     scores.sort(reverse=True)
     resultado = []
@@ -171,6 +198,7 @@ def classificar(vetor_doc: np.ndarray, bncc: dict, top_k: int = TOP_K) -> list[d
         resultado.append({
             "codigo":     bncc["codigos"][i],
             "area":       bncc["areas"][i],
+            "etapa":      ETAPAS.get(str(bncc["codigos"][i])[:2], ""),
             "descricao":  bncc["descricoes"][i],
             "confianca":  round(score, 4),
         })
@@ -187,15 +215,18 @@ def pipeline(
     model=None,
     device=None,
     bncc: dict = None,
+    etapas: list[str] = None,
 ) -> dict:
 
-    vetores = []
+    scores = []
     pesos = []
 
-    # Representação 1: chunks
-    print("\n[1/2] Gerando embedding por chunks ...")
-    vetor_chunks = embedding_por_chunks(texto, tokenizer, model, device)
-    vetores.append(vetor_chunks)
+    # Representação 1: chunks — score = média dos TOP_CHUNKS chunks mais similares
+    print("\n[1/2] Gerando embeddings por chunks ...")
+    vetores_chunks = embeddings_por_chunks(texto, tokenizer, model, device)
+    sim_chunks = similaridades(vetores_chunks, bncc)
+    k = min(TOP_CHUNKS, len(vetores_chunks))
+    scores.append(np.sort(sim_chunks, axis=0)[-k:].mean(axis=0))
     pesos.append(PESO_CHUNKS)
 
     # Representação 2: título + resumo
@@ -203,11 +234,11 @@ def pipeline(
     if texto_resumo:
         print("\n[2/2] Gerando embedding de título + resumo ...")
         vetor_resumo = gerar_embedding(texto_resumo, tokenizer, model, device)
-        vetores.append(vetor_resumo)
+        scores.append(similaridades(vetor_resumo[np.newaxis], bncc)[0])
         pesos.append(PESO_RESUMO)
 
         # Convergência: similaridade entre as duas representações
-        convergencia = cosseno(vetor_chunks, vetor_resumo)
+        convergencia = cosseno(vetores_chunks.mean(axis=0), vetor_resumo)
         print(f"  Convergência entre representações: {convergencia:.3f}")
     else:
         print("\n[2/2] Título/resumo não fornecido — usando só chunks.")
@@ -215,28 +246,31 @@ def pipeline(
 
     # Combinação ponderada
     pesos_norm = np.array(pesos) / sum(pesos)
-    vetor_final = sum(p * v for p, v in zip(pesos_norm, vetores))
+    score_final = sum(p * s for p, s in zip(pesos_norm, scores))
 
     # Classificação
-    print(f"\nClassificando contra {len(bncc['embeddings'])} habilidades da BNCC ...")
-    habilidades = classificar(vetor_final, bncc)
+    alvo = ", ".join(ETAPAS[e] for e in etapas) if etapas else "todas as etapas"
+    print(f"\nClassificando contra as habilidades da BNCC ({alvo}) ...")
+    habilidades = classificar(score_final, bncc, etapas=etapas)
 
     return {
         "habilidades": habilidades,
         "convergencia": convergencia,
-        "num_chunks": len(fazer_chunks(texto, tokenizer)),
+        "num_chunks": len(vetores_chunks),
     }
 
 
 # ── CLI ──────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="Classificador BNCC — Ensino Médio")
+    parser = argparse.ArgumentParser(description="Classificador BNCC")
     parser.add_argument("--arquivo", help="Caminho para PDF ou Word")
     parser.add_argument("--texto",   help="Texto direto do material")
     parser.add_argument("--titulo",  help="Título do documento (opcional)")
     parser.add_argument("--resumo",  help="Resumo do documento (opcional)")
     parser.add_argument("--top",     type=int, default=TOP_K, help="Número de habilidades a retornar")
+    parser.add_argument("--etapas",  nargs="+", choices=list(ETAPAS),
+                        help="Etapas consideradas (padrão: todas). Ex.: --etapas EF EM")
     args = parser.parse_args()
 
     if not args.arquivo and not args.texto:
@@ -264,6 +298,7 @@ def main():
         model=model,
         device=device,
         bncc=bncc,
+        etapas=args.etapas,
     )
 
     # Exibe resultado
@@ -280,7 +315,7 @@ def main():
         print()
 
     for i, h in enumerate(resultado["habilidades"][:args.top], 1):
-        print(f"{i}. [{h['codigo']}] {h['area']}")
+        print(f"{i}. [{h['codigo']}] {h['etapa']} · {h['area']}")
         print(f"   Confiança: {h['confianca']:.3f}")
         print(f"   {h['descricao'][:120]}...")
         print()
