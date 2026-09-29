@@ -174,6 +174,7 @@ Em `classificar_documento.py`:
 | `CHUNK_OVERLAP` | 50 | Tokens de sobreposição |
 | `TOP_K` | 20 | Habilidades retornadas |
 | `TOP_CHUNKS` | 3 | Chunks mais similares considerados no score de cada habilidade |
+| `LIMIAR_CONV_ALTA` / `LIMIAR_CONV_MEDIA` | 0.65 / 0.50 | Limiares de convergência |
 | `PESO_CHUNKS` | 0.5 | Peso da representação por chunks |
 | `PESO_RESUMO` | 0.5 | Peso da representação por resumo |
 
@@ -181,7 +182,19 @@ Em `classificar_documento.py`:
 
 ## Convergência
 
-O pipeline calcula a similaridade entre a representação por chunks e a por título+resumo. Valores abaixo de 0.70 indicam que as duas representações divergem — o documento pode ser ambíguo ou complexo e merece revisão humana.
+Quando há título/resumo, o pipeline mede se as duas representações (chunks e título+resumo) **ordenam as habilidades do mesmo jeito**, pela correlação de Spearman entre os dois rankings:
+
+| Nível | Correlação | Interpretação |
+|---|---|---|
+| Alta | ≥ 0.65 | Resumo e documento apontam para as mesmas habilidades |
+| Média | ≥ 0.50 | Concordância parcial |
+| Baixa | < 0.50 | Divergem — documento ambíguo ou resumo pouco representativo; revisão humana recomendada |
+
+Limiares iniciais (`LIMIAR_CONV_ALTA`, `LIMIAR_CONV_MEDIA`), calibrados com um documento: resumo correto ≈ 0.74, resumos de outras disciplinas entre 0.01 e 0.48. Devem ser revistos com mais documentos rotulados.
+
+## Relevância
+
+Com o e5, o cosseno das habilidades mais bem colocadas fica numa faixa estreita (~0.80–0.85). Por isso a interface exibe a **relevância**: 100% para a melhor habilidade e 0% para a mediana das candidatas. O cosseno bruto continua disponível no campo `confianca` (e no tooltip da barra).
 
 ---
 
