@@ -91,12 +91,9 @@ function displayResults(data) {
   const convSection = document.getElementById('convergence-section');
   if (data.convergencia != null) {
     const c = data.convergencia;
-    const [cls, label] = c > 0.85
-      ? ['badge-high',   'Alta']
-      : c > 0.70
-      ? ['badge-medium', 'Média']
-      : ['badge-low',    'Baixa'];
-    const warning = c <= 0.70
+    const label = data.convergencia_nivel;
+    const cls = { 'Alta': 'badge-high', 'Média': 'badge-medium' }[label] || 'badge-low';
+    const warning = label === 'Baixa'
       ? '<br><small style="color:#991b1b;display:block;margin-top:.25rem">⚠ Convergência baixa — revisão humana recomendada</small>'
       : '';
     convSection.innerHTML = `<span class="convergence-badge ${escapeHtml(cls)}">Convergência: ${escapeHtml(c.toFixed(3))} — ${escapeHtml(label)}</span>${warning}`;
@@ -105,17 +102,18 @@ function displayResults(data) {
   }
 
   document.getElementById('meta-section').innerHTML =
-    `<div class="meta-info">${escapeHtml(data.num_chunks)} chunks analisados · ${escapeHtml(data.habilidades.length)} habilidades identificadas</div>`;
+    `<div class="meta-info">${escapeHtml(data.num_chunks)} chunks analisados · ${escapeHtml(data.habilidades.length)} habilidades identificadas · ` +
+    `relevância relativa à melhor habilidade (100%) e à mediana das candidatas (0%)</div>`;
 
   document.getElementById('competencies').innerHTML = data.habilidades.map(h => {
-    const pct = Math.round(h.confianca * 100);
+    const pct = Math.round(h.relevancia * 100);
     return `
       <div class="result-card">
         <div class="result-header">
           <span class="code-badge">${escapeHtml(h.codigo)}</span>
           <span class="area-label">${escapeHtml(h.etapa)} · ${escapeHtml(h.area)}</span>
         </div>
-        <div class="confidence-bar-wrap">
+        <div class="confidence-bar-wrap" title="Similaridade de cosseno: ${escapeHtml(h.confianca.toFixed(3))}">
           <div class="confidence-bar">
             <div class="confidence-fill" style="width:${pct}%"></div>
           </div>

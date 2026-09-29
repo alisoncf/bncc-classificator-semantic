@@ -44,6 +44,12 @@ TOP_CHUNKS = 3         # chunks mais similares considerados por habilidade
 PESO_CHUNKS = 0.5      # peso da representação por chunks
 PESO_RESUMO = 0.5      # peso da representação por título+resumo
 
+# Convergência = correlação de Spearman entre os rankings de habilidades gerados
+# pelos chunks e pelo título+resumo. Calibração inicial (e5-base): resumo correto
+# ≈ 0.74; resumos de outras disciplinas ≈ 0.01–0.48.
+LIMIAR_CONV_ALTA = 0.65
+LIMIAR_CONV_MEDIA = 0.50
+
 # Etapas da BNCC, identificadas pelo prefixo do código da habilidade
 ETAPAS = {
     "EI": "Educação Infantil",
@@ -169,14 +175,6 @@ def embeddings_por_chunks(texto: str, tokenizer, model, device) -> np.ndarray:
 
 # ── Similaridade ─────────────────────────────────────────────────────────────
 
-def cosseno(v1: np.ndarray, v2: np.ndarray) -> float:
-    norm1 = np.linalg.norm(v1)
-    norm2 = np.linalg.norm(v2)
-    if norm1 == 0 or norm2 == 0:
-        return 0.0
-    return float(np.dot(v1, v2) / (norm1 * norm2))
-
-
 def similaridades(vetores: np.ndarray, bncc: dict) -> np.ndarray:
     """Cosseno de cada vetor (linhas) contra todas as habilidades → (n_vetores, n_habilidades)."""
     hab = bncc["embeddings"] / np.linalg.norm(bncc["embeddings"], axis=1, keepdims=True)
@@ -184,23 +182,50 @@ def similaridades(vetores: np.ndarray, bncc: dict) -> np.ndarray:
     return vet @ hab.T
 
 
+def mascara_etapas(bncc: dict, etapas: list[str] = None) -> np.ndarray:
+    """True para as habilidades das etapas escolhidas (todas, se etapas for None)."""
+    if not etapas:
+        return np.ones(len(bncc["codigos"]), dtype=bool)
+    return np.array([str(c)[:2] in etapas for c in bncc["codigos"]])
+
+
+def correlacao_spearman(a: np.ndarray, b: np.ndarray) -> float:
+    """Correlação entre as ordenações de a e b (1 = mesma ordem, 0 = sem relação)."""
+    posto_a = np.argsort(np.argsort(a))
+    posto_b = np.argsort(np.argsort(b))
+    return float(np.corrcoef(posto_a, posto_b)[0, 1])
+
+
+def nivel_convergencia(conv: float) -> str:
+    return "Alta" if conv >= LIMIAR_CONV_ALTA else "Média" if conv >= LIMIAR_CONV_MEDIA else "Baixa"
+
+
 def classificar(scores_hab: np.ndarray, bncc: dict, top_k: int = TOP_K,
                 etapas: list[str] = None) -> list[dict]:
-    """Ordena as habilidades das etapas escolhidas (todas, se etapas for None) pelo score."""
-    scores = [
-        (float(score), i) for i, score in enumerate(scores_hab)
-        if not etapas or str(bncc["codigos"][i])[:2] in etapas
-    ]
+    """
+    Ordena as habilidades das etapas escolhidas (todas, se etapas for None) pelo score.
 
-    scores.sort(reverse=True)
+    "confianca" é o cosseno bruto — com o e5 fica numa faixa estreita (~0.80–0.85),
+    então também é retornada "relevancia": 1.0 para a melhor habilidade e 0.0 para
+    a mediana das candidatas, que diferencia melhor os resultados.
+    """
+    candidatos = np.flatnonzero(mascara_etapas(bncc, etapas))
+    ordem = candidatos[np.argsort(-scores_hab[candidatos])]
+
+    melhor = scores_hab[ordem[0]]
+    mediana = np.median(scores_hab[candidatos])
+    amplitude = max(melhor - mediana, 1e-9)
+
     resultado = []
-    for score, i in scores[:top_k]:
+    for i in ordem[:top_k]:
+        score = float(scores_hab[i])
         resultado.append({
             "codigo":     bncc["codigos"][i],
             "area":       bncc["areas"][i],
             "etapa":      ETAPAS.get(str(bncc["codigos"][i])[:2], ""),
             "descricao":  bncc["descricoes"][i],
             "confianca":  round(score, 4),
+            "relevancia": round(max(score - mediana, 0.0) / amplitude, 4),
         })
     return resultado
 
@@ -229,20 +254,23 @@ def pipeline(
     scores.append(np.sort(sim_chunks, axis=0)[-k:].mean(axis=0))
     pesos.append(PESO_CHUNKS)
 
-    # Representação 2: título + resumo
+    # Representação 2: título + resumo (dividido em chunks se passar de MAX_TOKENS,
+    # para não truncar resumos longos)
     texto_resumo = " ".join(filter(None, [titulo, resumo])).strip()
     if texto_resumo:
         print("\n[2/2] Gerando embedding de título + resumo ...")
-        vetor_resumo = gerar_embedding(texto_resumo, tokenizer, model, device)
+        vetor_resumo = embeddings_por_chunks(texto_resumo, tokenizer, model, device).mean(axis=0)
         scores.append(similaridades(vetor_resumo[np.newaxis], bncc)[0])
         pesos.append(PESO_RESUMO)
 
-        # Convergência: similaridade entre as duas representações
-        convergencia = cosseno(vetores_chunks.mean(axis=0), vetor_resumo)
-        print(f"  Convergência entre representações: {convergencia:.3f}")
+        # Convergência: as duas representações ordenam as habilidades do mesmo jeito?
+        mascara = mascara_etapas(bncc, etapas)
+        convergencia = correlacao_spearman(scores[0][mascara], scores[1][mascara])
+        nivel = nivel_convergencia(convergencia)
+        print(f"  Convergência entre representações: {convergencia:.3f} ({nivel})")
     else:
         print("\n[2/2] Título/resumo não fornecido — usando só chunks.")
-        convergencia = None
+        convergencia = nivel = None
 
     # Combinação ponderada
     pesos_norm = np.array(pesos) / sum(pesos)
@@ -256,6 +284,7 @@ def pipeline(
     return {
         "habilidades": habilidades,
         "convergencia": convergencia,
+        "convergencia_nivel": nivel,
         "num_chunks": len(vetores_chunks),
     }
 
@@ -308,7 +337,7 @@ def main():
 
     if resultado["convergencia"] is not None:
         conv = resultado["convergencia"]
-        nivel = "Alta" if conv > 0.85 else "Média" if conv > 0.70 else "Baixa"
+        nivel = resultado["convergencia_nivel"]
         print(f"Convergência entre representações: {conv:.3f} ({nivel})")
         if nivel == "Baixa":
             print("⚠ Baixa convergência — recomenda-se revisão humana.")
@@ -316,7 +345,7 @@ def main():
 
     for i, h in enumerate(resultado["habilidades"][:args.top], 1):
         print(f"{i}. [{h['codigo']}] {h['etapa']} · {h['area']}")
-        print(f"   Confiança: {h['confianca']:.3f}")
+        print(f"   Relevância: {h['relevancia']:.0%}  (cosseno {h['confianca']:.3f})")
         print(f"   {h['descricao'][:120]}...")
         print()
 
